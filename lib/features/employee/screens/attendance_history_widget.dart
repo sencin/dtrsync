@@ -9,10 +9,10 @@ class AttendanceHistoryWidget extends StatefulWidget {
   const AttendanceHistoryWidget({super.key});
 
   @override
-  State<AttendanceHistoryWidget> createState() => _AttendanceHistoryWidgetState();
+  AttendanceHistoryWidgetState createState() => AttendanceHistoryWidgetState();
 }
 
-class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
+class AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
   List<dynamic> _recentHistory = [];
   bool _isLoading = true;
   String? _userId;
@@ -20,17 +20,16 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
   @override
   void initState() {
     super.initState();
-    _loadRecentHistory();
+    loadRecentHistory();
   }
 
-  Future<void> _loadRecentHistory() async {
+  Future<void> loadRecentHistory() async {
     setState(() => _isLoading = true);
 
     try {
       _userId = await TokenStorage.getUserId();
       if (_userId == null) throw Exception("User ID not found");
 
-      // The endpoint returning the new AttendanceResponse DTO list
       final response = await ApiClient.dio.get("/v1/attendances/user/$_userId/recent");
 
       if (!mounted) return;
@@ -41,7 +40,7 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
       debugPrint("Dio error: ${e.message}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to load history: ${e.message}")),
+          SnackBar(content: Text("Server Error (500): Check backend for null timeOut crashes.")),
         );
       }
     } catch (e) {
@@ -58,40 +57,44 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
 
   // Helper method to convert UTC Date and Time to Philippine Time (UTC+8)
   String _formatTime(String? dateStr, String? timeStr) {
-    if (timeStr == null || timeStr.isEmpty || timeStr == "--:--") return "--:--";
+    // Added safety check for literal "null" string that sometimes comes from APIs
+    if (timeStr == null ||
+        timeStr.trim().isEmpty ||
+        timeStr == "--:--" ||
+        timeStr.trim().toLowerCase() == "null") {
+      return "--:--";
+    }
 
     try {
       DateTime parsedUtc;
 
-      if (dateStr != null && dateStr.isNotEmpty) {
-        // Extract just the date part if it contains a timestamp
+      if (dateStr != null && dateStr.isNotEmpty && dateStr.toLowerCase() != "null") {
         String shortDate = dateStr.contains('T') ? dateStr.split('T')[0] : dateStr;
-        // Append Z to enforce UTC parsing
         parsedUtc = DateTime.parse('${shortDate}T$timeStr${timeStr.length == 5 ? ':00' : ''}Z').toUtc();
       } else {
-        // Fallback if date is missing
         parsedUtc = DateTime.parse('1970-01-01T$timeStr${timeStr.length == 5 ? ':00' : ''}Z').toUtc();
       }
 
-      // Convert to Philippine Time (UTC+8)
       final phTime = parsedUtc.add(const Duration(hours: 8));
       return DateFormat("h:mm a").format(phTime);
     } catch (e) {
-      debugPrint("Error parsing time: $e");
-      return timeStr; // Fallback if parsing fails
+      debugPrint("Error parsing time: $timeStr - $e");
+      return "--:--"; // Return default blank instead of crashing
     }
   }
 
   // Helper method to parse the date string from backend
   String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return "Unknown Date";
+    if (dateStr == null || dateStr.isEmpty || dateStr.toLowerCase() == "null") {
+      return "Unknown Date";
+    }
+
     try {
-      // Ensure we only parse the date portion so it doesn't accidentally shift timezones
       String shortDate = dateStr.contains('T') ? dateStr.split('T')[0] : dateStr;
       final dt = DateTime.parse(shortDate);
       return DateFormat('EEEE, MMM dd, yyyy').format(dt);
     } catch (e) {
-      return dateStr; // Fallback if parsing fails
+      return "Invalid Date";
     }
   }
 
@@ -102,11 +105,8 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min, // Takes up only needed height
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // ==========================================
-        // HEADER ROW (Title + Refresh Button)
-        // ==========================================
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -119,7 +119,7 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
             ),
             IconButton(
               icon: Icon(Icons.refresh_rounded, color: colorScheme.primary, size: 20),
-              onPressed: _loadRecentHistory,
+              onPressed: loadRecentHistory,
               tooltip: "Refresh History",
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -127,10 +127,6 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
           ],
         ),
         const SizedBox(height: 12),
-
-        // ==========================================
-        // LIST SECTION
-        // ==========================================
         _buildHistoryList(colorScheme),
       ],
     );
@@ -157,8 +153,8 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
     }
 
     return ListView.separated(
-      shrinkWrap: true, // Crucial for using inside a parent ScrollView
-      physics: const NeverScrollableScrollPhysics(), // Let the parent handle scrolling
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: _recentHistory.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
@@ -166,13 +162,17 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
         final rawDate = item["date"]?.toString();
 
         final displayDate = _formatDate(rawDate);
-        // Pass both the date and time strings so the UTC parser knows exactly when this occurred
         final timeInStr = _formatTime(rawDate, item["timeIn"]?.toString());
         final timeOutStr = _formatTime(rawDate, item["timeOut"]?.toString());
 
-        final totalHours = item["totalHours"] ?? 0;
-        final timeInImage = item["timeInImage"];
-        final timeOutImage = item["timeOutImage"];
+        // Safely parse totalHours in case it's null or a string "null"
+        final rawHours = item["totalHours"];
+        final String totalHours = (rawHours == null || rawHours.toString().toLowerCase() == "null")
+            ? "0"
+            : rawHours.toString();
+
+        final timeInImage = item["timeInImage"]?.toString();
+        final timeOutImage = item["timeOutImage"]?.toString();
 
         return Card(
           elevation: 0,
@@ -185,10 +185,6 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
               tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-
-              // ==========================================
-              // COLLAPSED HEADER
-              // ==========================================
               title: Row(
                 children: [
                   Icon(Icons.calendar_today_rounded, size: 16, color: colorScheme.primary),
@@ -233,10 +229,6 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
                   ],
                 ),
               ),
-
-              // ==========================================
-              // EXPANDED CONTENT
-              // ==========================================
               children: [
                 Divider(color: colorScheme.outlineVariant.withOpacity(0.4)),
                 Padding(
@@ -335,6 +327,9 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
   }
 
   Widget _buildImageSection(String label, String? imageUrl, ColorScheme colorScheme) {
+    // Null-check against string "null"
+    final bool hasImage = imageUrl != null && imageUrl.isNotEmpty && imageUrl.toLowerCase() != "null";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -355,7 +350,7 @@ class _AttendanceHistoryWidgetState extends State<AttendanceHistoryWidget> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
           ),
-          child: imageUrl != null && imageUrl.isNotEmpty
+          child: hasImage
               ? ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.network(

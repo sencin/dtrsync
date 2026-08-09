@@ -55,6 +55,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final AttendanceService attendanceService = AttendanceService();
   final FaceEngineService faceEngineService = FaceEngineService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final GlobalKey<AttendanceHistoryWidgetState> _historyKey = GlobalKey<AttendanceHistoryWidgetState>();
 
   // === User Data State ===
   String _userName = "Loading...";
@@ -331,6 +332,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       // 7. Refresh status and history list
       await loadStatus();
       await loadHistory();
+      _historyKey.currentState?.loadRecentHistory();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -465,8 +467,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               const SizedBox(height: 24),
               _buildMapSection(theme, colorScheme, isDark),
               const SizedBox(height: 24),
-
-              const AttendanceHistoryWidget(),
+              AttendanceHistoryWidget(key: _historyKey),
             ],
           ),
         ),
