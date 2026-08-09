@@ -3,8 +3,8 @@ import 'package:dtrsync/core/storage/token_storage.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
- // static const String baseUrl ='https://dtrsync.onrender.com/api';
-  static const String baseUrl ='http://192.168.245.245:8082/api';
+  static const String baseUrl ='https://dtrsync.onrender.com/api';
+ // static const String baseUrl ='http://192.168.245.245:8082/api';
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
