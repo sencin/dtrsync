@@ -6,7 +6,7 @@ Employee Attendance and Monitoring System built using `Flutter`, `Spring Boot`, 
 
 * **Application Name:** `DTRSync`
 * **Application Type:** `Employee Attendance and Monitoring System`
-* **Live Link / Download:** `https://github.com/sencin/dtrsync/releases`
+* **Live Link / Download:** `https://github.com/sencin/dtrsync/releases/download/v1.0.0%2B2/app-release.apk`
 * **Backend Repository:** `https://github.com/sencin/DTRFirstBackend`
 
 ## 2. Source Code
